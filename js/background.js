@@ -332,6 +332,11 @@
         return;
       }
 
+      if (entry === 'clear ads') {
+        clearAds();
+        return;
+      }
+
       if (entry === 'clear cookies') {
         clearCookies();
         return;
@@ -364,6 +369,14 @@
 
   /******************************************************************************/
 
+  function clearAds() {
+    chrome.runtime.sendMessage(SessBench.adNauseamId, {
+        what: 'clearAds',
+      },
+      executePlaylist
+    );
+  }
+
   function clearCache() {
     chrome.browsingData.removeCache({
       since: 0
@@ -391,13 +404,15 @@
   function pageStart(url) {
 
     var sess = SessBench;
-    if (sess.adNauseamDisabled) {
+    if (1 || sess.adNauseamDisabled) {
+      console.log('SessBench load: ' + url);
       chrome.tabs.update(SessBench.tabId, {
         url: url
       });
       return;
     }
 
+    // disabled
     chrome.runtime.sendMessage(sess.adNauseamId, {
         what: 'startTest',
         pageURL: url
@@ -412,6 +427,7 @@
 
         } else {
 
+          console.log('SessBench start: ' + url);
           chrome.tabs.update(SessBench.tabId, {
             url: url
           });
@@ -503,44 +519,44 @@
 
     var sess = SessBench;
 
-    // here we call adnauseam for ad count
-    if (!sess.adNauseamDisabled) {
+    if (sess.adNauseamDisabled) {
 
-      chrome.runtime.sendMessage(sess.adNauseamId, {
-          what: 'getAdCount',
-          pageURL: pageURL
-        },
-        function (result) {
+      // no AdNauseam found
+      sess.devtoolPorts[sess.portName].postMessage({
+        what: 'getPageStats',
+        pageURL: pageURL,
+        adCount: -1
+      });
 
-          if (chrome.runtime.lastError) {
-
-            // 'Could not establish connection. Receiving end does not exist.'
-            console.warn('AdNauseam not found: ', chrome.runtime.lastError.message);
-
-            sess.adNauseamDisabled = true;
-
-            getPageStats(pageURL); // try again
-
-          } else {
-
-            //console.log('GOT RESULT: ', result);
-
-            sess.devtoolPorts[sess.portName].postMessage({
-              what: 'getPageStats',
-              pageURL: pageURL,
-              adCount: result.count
-            });
-          }
-        }
-      );
+      return;
     }
 
-    // no AdNauseam found
-    sess.devtoolPorts[sess.portName].postMessage({
-      what: 'getPageStats',
-      pageURL: pageURL,
-      adCount: -1
-    });
+    // here we call adnauseam for ad count
+    chrome.runtime.sendMessage(sess.adNauseamId, {
+        what: 'getAdCount',
+        pageURL: pageURL
+      },
+      function (result) {
+
+        if (chrome.runtime.lastError) {
+
+          // 'Could not establish connection. Receiving end does not exist.'
+          console.warn('AdNauseam not found: ', chrome.runtime.lastError.message);
+          sess.adNauseamDisabled = true;
+          getPageStats(pageURL); // try again
+
+        } else {
+
+          console.log('SessBench found: ' + result.count);
+
+          sess.devtoolPorts[sess.portName].postMessage({
+            what: 'getPageStats',
+            pageURL: pageURL,
+            adCount: result.count
+          });
+        }
+      }
+    );
   }
 
   function getPageStatsCallback(details) {
@@ -704,6 +720,14 @@
       matches = line.match(/^clear +cache$/i);
       if (matches) {
         sess.playlist[sess.playlistPtr] = 'clear cache';
+        sess.playlistPtr++;
+        continue;
+      }
+
+      // clear cache directive
+      matches = line.match(/^clear +ads$/i);
+      if (matches) {
+        sess.playlist[sess.playlistPtr] = 'clear ads';
         sess.playlistPtr++;
         continue;
       }
