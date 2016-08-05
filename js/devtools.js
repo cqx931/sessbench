@@ -23,8 +23,7 @@
 /******************************************************************************/
 
 chrome.devtools.panels.create(
-    'Session benchmark',
-    null,
-    'devtools-panel.html',
-    null);
-
+  'Session benchmark',
+  null,
+  'devtools-panel.html',
+  null);
